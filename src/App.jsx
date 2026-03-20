@@ -30,14 +30,22 @@ function translateLineToEnglish(line) {
     .replace(/원본 표 전체를 넣어주실 수 있나요\?/g, 'Could you provide the full original table?')
 }
 
-function rewriteText(text, language) {
+function polishEnglishLine(line, tone) {
+  const translated = translateLineToEnglish(line)
+  if (tone === 'simple') return translated
+  if (tone === 'executive') return `Executive summary: ${translated}`
+  return translated
+}
+
+function rewriteText(text, language, tone) {
   const lines = text.split(/\n+/).map((line) => normalizeLine(line)).filter(Boolean)
   return lines
     .map((line) => {
       if (/^# Sheet:/i.test(line)) return line
       if (language === 'en') {
-        const translated = translateLineToEnglish(line)
-        return translated.endsWith('.') || translated.endsWith('!') || translated.endsWith('?') ? translated : `${translated}.`
+        let rewritten = polishEnglishLine(line, tone)
+        if (/^[•\-*]/.test(rewritten) && tone === 'formal') rewritten = rewritten.replace(/^[•\-*]\s*/, '• ')
+        return rewritten.endsWith('.') || rewritten.endsWith('!') || rewritten.endsWith('?') ? rewritten : `${rewritten}.`
       }
       if (/합계|총계|subtotal/i.test(line)) return `검토 결과: ${line}`
       if (/^[•\-*]/.test(line)) return line
@@ -46,7 +54,7 @@ function rewriteText(text, language) {
     .join('\n')
 }
 
-function analyzeText(text, language) {
+function analyzeText(text, language, tone) {
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
   const questions = []
   const issues = []
@@ -90,7 +98,7 @@ function analyzeText(text, language) {
     questions.push(language === 'en' ? 'The input is empty. Please paste text or upload a file.' : '입력 텍스트가 비어 있습니다. 붙여넣기 또는 파일 업로드가 필요합니다.')
   }
 
-  return { lines, nums, issues, grammar, questions, finalVersion: rewriteText(text, language) }
+  return { lines, nums, issues, grammar, questions, finalVersion: rewriteText(text, language, tone) }
 }
 
 async function readExcel(file) {
@@ -114,9 +122,10 @@ export default function App() {
   const [sourceName, setSourceName] = useState('')
   const [copied, setCopied] = useState(false)
   const [language, setLanguage] = useState('en')
+  const [tone, setTone] = useState('formal')
 
   const mergedText = useMemo(() => [text, attachmentText].filter(Boolean).join('\n\n'), [text, attachmentText])
-  const result = useMemo(() => analyzeText(mergedText, language), [mergedText, language])
+  const result = useMemo(() => analyzeText(mergedText, language, tone), [mergedText, language, tone])
 
   const handleIncomingFile = async (file) => {
     if (!file) return
@@ -177,21 +186,24 @@ export default function App() {
           </div>
         </div>
         <p className="muted">최종 결과물은 선택한 언어로 표시됩니다.</p>
+        {language === 'en' && (
+          <>
+            <label className="label">English style</label>
+            <div className="lang-switch">
+              <button className={tone === 'formal' ? 'lang-btn active' : 'lang-btn'} onClick={() => setTone('formal')}>Formal</button>
+              <button className={tone === 'simple' ? 'lang-btn active' : 'lang-btn'} onClick={() => setTone('simple')}>Simple</button>
+              <button className={tone === 'executive' ? 'lang-btn active' : 'lang-btn'} onClick={() => setTone('executive')}>Executive</button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="card">
         <h2>{language === 'en' ? 'Input' : '입력'}</h2>
         <label className="label">{language === 'en' ? 'Paste text / commentary' : '텍스트/Commentary 붙여넣기'}</label>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={language === 'en' ? 'Paste commentary or table text here' : '여기에 commentary 또는 표 텍스트를 붙여넣으세요'}
-          rows={10}
-        />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={language === 'en' ? 'Paste commentary or table text here' : '여기에 commentary 또는 표 텍스트를 붙여넣으세요'} rows={10} />
         <label className="label">{language === 'en' ? 'Paste image / screenshot' : '그림/캡처 붙여넣기'}</label>
-        <div className="paste-zone">
-          {language === 'en' ? 'Copy an image and paste it here. (Ctrl+V / ⌘V)' : '캡처 이미지를 복사한 뒤 이 화면에서 붙여넣기 하세요. (Ctrl+V / ⌘V)'}
-        </div>
+        <div className="paste-zone">{language === 'en' ? 'Copy an image and paste it here. (Ctrl+V / ⌘V)' : '캡처 이미지를 복사한 뒤 이 화면에서 붙여넣기 하세요. (Ctrl+V / ⌘V)'}</div>
         <label className="label">{language === 'en' ? 'File upload (Excel / image / text)' : '파일 업로드 (엑셀 / 이미지 / 텍스트)'}</label>
         <input type="file" onChange={onFile} />
         {loading && <p className="muted">{language === 'en' ? 'Analyzing file…' : '파일 분석 중…'}</p>}
@@ -202,23 +214,15 @@ export default function App() {
         <article className="card">
           <h2>{language === 'en' ? 'Number Check' : '숫자 검증'}</h2>
           <p className="muted">{language === 'en' ? `Extracted ${result.nums.length} numbers` : `추출 숫자 ${result.nums.length}개`}</p>
-          <ul>
-            {result.issues.length ? result.issues.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No automatic subtotal pattern found yet.' : '자동 부분합 일치 패턴을 아직 찾지 못했습니다.'}</li>}
-          </ul>
+          <ul>{result.issues.length ? result.issues.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No automatic subtotal pattern found yet.' : '자동 부분합 일치 패턴을 아직 찾지 못했습니다.'}</li>}</ul>
         </article>
-
         <article className="card">
           <h2>{language === 'en' ? 'Grammar / Wording' : '문법/표현 체크'}</h2>
-          <ul>
-            {result.grammar.length ? result.grammar.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No obvious basic grammar/notation issues found.' : '눈에 띄는 기본 문법/표기 이슈가 없습니다.'}</li>}
-          </ul>
+          <ul>{result.grammar.length ? result.grammar.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No obvious basic grammar/notation issues found.' : '눈에 띄는 기본 문법/표기 이슈가 없습니다.'}</li>}</ul>
         </article>
-
         <article className="card">
           <h2>{language === 'en' ? 'Follow-up Questions' : '추가 질문'}</h2>
-          <ul>
-            {result.questions.length ? result.questions.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No additional questions.' : '추가 질문이 없습니다.'}</li>}
-          </ul>
+          <ul>{result.questions.length ? result.questions.map((item, i) => <li key={i}>{item}</li>) : <li>{language === 'en' ? 'No additional questions.' : '추가 질문이 없습니다.'}</li>}</ul>
         </article>
       </section>
 
