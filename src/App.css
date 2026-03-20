@@ -16,7 +16,9 @@ ul { padding-left: 18px; line-height: 1.6; }
 pre { white-space: pre-wrap; word-break: break-word; background: #06101c; padding: 14px; border-radius: 12px; color: #dce8ff; }
 .muted { color: #9fb4d3; }
 .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.copy-btn { border: 1px solid #4974a8; background:#0c1d34; color:#eef4ff; padding:8px 14px; border-radius:10px; cursor:pointer; }
-.copy-btn:hover { background:#123055; }
+.copy-btn, .lang-btn { border: 1px solid #4974a8; background:#0c1d34; color:#eef4ff; padding:8px 14px; border-radius:10px; cursor:pointer; }
+.copy-btn:hover, .lang-btn:hover { background:#123055; }
 .paste-zone { border: 1px dashed #4d79ad; border-radius: 14px; background: #091424; color: #cfe1ff; padding: 14px; text-align: center; }
-@media (max-width: 640px) { .app-shell { padding: 14px; } h1 { font-size: 34px; } .row { flex-direction:column; align-items:flex-start; } }
+.lang-switch { display:flex; gap:8px; }
+.lang-btn.active { background:#1b4676; border-color:#7db8ff; }
+@media (max-width: 640px) { .app-shell { padding: 14px; } h1 { font-size: 34px; } .row { flex-direction:column; align-items:flex-start; } .lang-switch { width:100%; } }
