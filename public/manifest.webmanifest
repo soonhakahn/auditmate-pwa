@@ -1,12 +1,13 @@
 {
   "name": "AuditMate",
   "short_name": "AuditMate",
-  "start_url": "/",
+  "start_url": "/auditmate-pwa/",
+  "scope": "/auditmate-pwa/",
   "display": "standalone",
   "background_color": "#0a1527",
   "theme_color": "#0a1527",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/auditmate-pwa/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/auditmate-pwa/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
