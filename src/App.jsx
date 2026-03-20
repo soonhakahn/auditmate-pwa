@@ -8,6 +8,28 @@ function extractNumbers(text) {
   return matches.map((raw) => ({ raw, value: Number(raw.replace(/,/g, '')) })).filter((x) => !Number.isNaN(x.value))
 }
 
+function normalizeLine(line) {
+  return line
+    .replace(/\bteh\b/gi, 'the')
+    .replace(/\brecieve\b/gi, 'receive')
+    .replace(/\bseperate\b/gi, 'separate')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/ ,/g, ',')
+    .trim()
+}
+
+function rewriteText(text) {
+  const lines = text.split(/\n+/).map((line) => normalizeLine(line)).filter(Boolean)
+  return lines
+    .map((line) => {
+      if (/^# Sheet:/i.test(line)) return line
+      if (/합계|총계|subtotal/i.test(line)) return `검토 결과: ${line}`
+      if (/^[•\-*]/.test(line)) return line
+      return line.endsWith('.') || line.endsWith('!') || line.endsWith('?') ? line : `${line}.`
+    })
+    .join('\n')
+}
+
 function analyzeText(text) {
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
   const questions = []
@@ -20,6 +42,9 @@ function analyzeText(text) {
     }
     if (/\s{2,}/.test(line)) {
       grammar.push(`Line ${idx + 1}: 불필요한 이중 공백이 있습니다.`)
+    }
+    if (!/[.!?]$/.test(line) && /[A-Za-z가-힣]/.test(line) && !/^# Sheet:/i.test(line)) {
+      grammar.push(`Line ${idx + 1}: 문장 종결 부호 보강 가능 → "${line}"`)
     }
   })
 
@@ -49,7 +74,7 @@ function analyzeText(text) {
     questions.push('입력 텍스트가 비어 있습니다. 붙여넣기 또는 파일 업로드가 필요합니다.')
   }
 
-  return { lines, nums, issues, grammar, questions }
+  return { lines, nums, issues, grammar, questions, finalVersion: rewriteText(text) }
 }
 
 async function readExcel(file) {
@@ -71,6 +96,7 @@ export default function App() {
   const [attachmentText, setAttachmentText] = useState('')
   const [loading, setLoading] = useState(false)
   const [sourceName, setSourceName] = useState('')
+  const [copied, setCopied] = useState(false)
 
   const mergedText = useMemo(() => [text, attachmentText].filter(Boolean).join('\n\n'), [text, attachmentText])
   const result = useMemo(() => analyzeText(mergedText), [mergedText])
@@ -95,13 +121,19 @@ export default function App() {
     }
   }
 
+  const copyFinal = async () => {
+    await navigator.clipboard.writeText(result.finalVersion || '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     <div className="app-shell">
       <header className="hero">
         <div>
           <p className="eyebrow">iPhone 홈화면 설치형 검수 앱</p>
           <h1>AuditMate</h1>
-          <p className="subtitle">붙여넣기/엑셀/캡처를 넣으면 숫자 합계, 부분합, 문법, 추가 확인 질문을 한 번에 점검합니다.</p>
+          <p className="subtitle">붙여넣기/엑셀/캡처를 넣으면 숫자 합계, 부분합, 문법, 추가 확인 질문, 그리고 최종 교정본까지 한 번에 점검합니다.</p>
         </div>
       </header>
 
@@ -142,6 +174,14 @@ export default function App() {
             {result.questions.length ? result.questions.map((item, i) => <li key={i}>{item}</li>) : <li>추가 질문이 없습니다.</li>}
           </ul>
         </article>
+      </section>
+
+      <section className="card">
+        <div className="row">
+          <h2>최종 교정본 (Final Version)</h2>
+          <button className="copy-btn" onClick={copyFinal}>{copied ? '복사됨' : '복사'}</button>
+        </div>
+        <pre>{result.finalVersion || '아직 입력이 없습니다.'}</pre>
       </section>
 
       <section className="card">
