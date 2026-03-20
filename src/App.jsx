@@ -101,23 +101,37 @@ export default function App() {
   const mergedText = useMemo(() => [text, attachmentText].filter(Boolean).join('\n\n'), [text, attachmentText])
   const result = useMemo(() => analyzeText(mergedText), [mergedText])
 
-  const onFile = async (e) => {
-    const file = e.target.files?.[0]
+  const handleIncomingFile = async (file) => {
     if (!file) return
     setLoading(true)
-    setSourceName(file.name)
+    setSourceName(file.name || 'clipboard-image')
     try {
-      if (/xlsx|xls|csv/.test(file.name.toLowerCase())) {
+      if (/xlsx|xls|csv/.test((file.name || '').toLowerCase())) {
         setAttachmentText(await readExcel(file))
-      } else if (/png|jpg|jpeg|webp|gif|heic/i.test(file.name.toLowerCase())) {
+      } else if (file.type.startsWith('image/') || /png|jpg|jpeg|webp|gif|heic/i.test((file.name || '').toLowerCase())) {
         setAttachmentText(await readImage(file))
-      } else if (/txt|md/i.test(file.name.toLowerCase())) {
+      } else if (/txt|md/i.test((file.name || '').toLowerCase())) {
         setAttachmentText(await file.text())
       } else {
-        setAttachmentText(`지원하지 않는 파일 형식입니다: ${file.name}`)
+        setAttachmentText(`지원하지 않는 파일 형식입니다: ${file.name || file.type}`)
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0]
+    await handleIncomingFile(file)
+  }
+
+  const onPaste = async (e) => {
+    const items = Array.from(e.clipboardData?.items || [])
+    const imageItem = items.find((item) => item.type?.startsWith('image/'))
+    if (imageItem) {
+      e.preventDefault()
+      const file = imageItem.getAsFile()
+      await handleIncomingFile(file)
     }
   }
 
@@ -128,7 +142,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onPaste={onPaste}>
       <header className="hero">
         <div>
           <p className="eyebrow">iPhone 홈화면 설치형 검수 앱</p>
@@ -146,6 +160,10 @@ export default function App() {
           placeholder="여기에 commentary 또는 표 텍스트를 붙여넣으세요"
           rows={10}
         />
+        <label className="label">그림/캡처 붙여넣기</label>
+        <div className="paste-zone">
+          캡처 이미지를 복사한 뒤 이 화면에서 붙여넣기 하세요. (Ctrl+V / ⌘V)
+        </div>
         <label className="label">파일 업로드 (엑셀 / 이미지 / 텍스트)</label>
         <input type="file" onChange={onFile} />
         {loading && <p className="muted">파일 분석 중…</p>}
